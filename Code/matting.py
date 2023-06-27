@@ -4,6 +4,7 @@ import GeodisTK
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
 import tqdm
+from video_utils import *
 
 
 ALPHA_AREA_KERNEL_WIDTH = 5
@@ -179,36 +180,6 @@ def calc_slice_limits(arr, start_row, start_col, end_row, end_col, pad_w, pad_h)
     return min_row, min_col, max_row, max_col
 
 
-def get_video_parameters(capture: cv2.VideoCapture) -> dict:
-    """Get an OpenCV capture object and extract its parameters.
-
-    Args:
-        capture: cv2.VideoCapture object.
-
-    Returns:
-        parameters: dict. Video parameters extracted from the video.
-
-    """
-    fourcc = int(capture.get(cv2.CAP_PROP_FOURCC))
-    fps = int(capture.get(cv2.CAP_PROP_FPS))
-    height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-    frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
-    return {"fourcc": fourcc, "fps": fps, "height": height, "width": width,
-            "frame_count": frame_count}
-
-
-def init_vid_writer(output_path: str, params, isColor):
-    out_writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'XVID'), params['fps'], (params['width'], params['height']), isColor)
-    return out_writer
-
-
-video_capture = cv2.VideoCapture('Inputs/INPUT.avi')  
-video_capture.set(cv2.CAP_PROP_POS_FRAMES, 1)
-success, frame = video_capture.read()
-binary_img = cv2.imread('Inputs/bin_img.png', cv2.IMREAD_GRAYSCALE)
-
-run_matting_on_frame(frame, binary_img)
 
 
 # video_capture = cv2.VideoCapture('../../../ref_VPproject/FinalProject_300508850_021681283/Outputs/binary.avi')  
