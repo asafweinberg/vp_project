@@ -15,10 +15,10 @@ def background_substraction():
     stab_vid_frame_count = params["frame_count"]
 
     #build extracted video writer
-    extracted_writer = init_vid_writer(SUBTRACTED_EXTRACTED_VIDEO_PATH,params,True)
+    extracted_writer = init_vid_writer(SUBTRACTED_EXTRACTED_VIDEO_PATH, params, True)
     
     #build binary video writer
-    binary_writer = init_vid_writer(SUBTRACTED_BINARY_VIDEO_PATH,params,False)
+    binary_writer = init_vid_writer(SUBTRACTED_BINARY_VIDEO_PATH, params, False)
 
     
     mixtures_num = 5
@@ -221,7 +221,7 @@ def background_substraction():
                 if len(collect_kde_data_frames)>kde_temp_size:
                     collect_kde_data_frames = collect_kde_data_frames[-kde_temp_size:]
                     #initialize the kde
-                kde = sklearn.neighbors.KernelDensity(bandwidth=0.3, kernel='gaussian',atol=0.000000005)
+                kde = sklearn.neighbors.KernelDensity(bandwidth=0.3, kernel='gaussian',atol=0.00000001)
                 #use the data collected
                 kde.fit(collect_kde_data_frames)
                 frame_last_trained = i
