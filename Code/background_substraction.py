@@ -118,3 +118,30 @@ def background_substraction(stab_vid_cap):
     kde = sklearn.neighbors.KernelDensity(bandwidth=0.3, kernel='gaussian',atol=0.000000005)
     #use the data collected
     kde.fit(collect_kde_data_frames)
+
+    #initialize histogram, using the data collected
+    ps, bins = np.histogram(collect_gray_data_for_hist.flatten(),bins=30, density=True)
+    bins_diff = bins[1]-bins[0]
+    #calculate the pdf
+    pdf = bins_diff*np.cumsum(ps)
+
+    #threshold acoording to desired low and high pdf thresholds
+    #define histogram's edge values
+    #low
+    pdf_low_th = 0.001
+    low_cond = np.where(pdf<pdf_low_th)
+    hist_min_val = 0
+    if (len(low_cond[0])>0): #need to update histogram minimum value
+        #take the maximum out of the bins in the condition
+        hist_min_val = bins[np.max(low_cond)]
+    
+    #high
+    pdf_high_th = 0.999
+    high_cond = np.where(pdf>pdf_high_th)
+    hist_max_val = 255
+    if (len(high_cond[0])>0): #need to update histogram minimum value
+        #take the minimum out of the bins in the condition
+        hist_max_val = bins[np.max(high_cond)]
+
+
+    #now we run of 
