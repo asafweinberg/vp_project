@@ -3,7 +3,7 @@ import cv2
 import GeodisTK
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
-import tqdm
+from tqdm import tqdm
 from video_utils import *
 
 
@@ -21,7 +21,7 @@ ALPHA_OUT_PATH = 'Outputs/alpha.avi'
 MATTED_OUT_PATH = 'Outputs/matted.avi'
 OUTPUT_OUT_PATH = 'Outputs/OUTPUT.avi'
 
-def run_matting_and_tracking_full():
+def matting_and_tracking():
     vid_input = cv2.VideoCapture(INPUT_VIDEO_PATH)
     vid_binary = cv2.VideoCapture(BINARY_VIDEO_PATH)
 
@@ -41,17 +41,13 @@ def run_matting_and_tracking_full():
         if success_input or success_binary:
             alpha, matted, tracked =  run_matting_and_tracking_on_frame(input_frame, binary_frame, background_img)
 
-            vid_writer_alpha.write(alpha.astype('uint8'), (width, height))
-            vid_writer_matting.write(matted.astype('uint8'), (width, height))
-            vid_writer_output.write(tracked.astype('uint8'), (width, height))
+            vid_writer_alpha.write(alpha.astype('uint8'))
+            vid_writer_matting.write(matted.astype('uint8'))
+            vid_writer_output.write(tracked.astype('uint8'))
         else:
             break
 
-    vid_input.release()
-    vid_binary.release()
-    vid_writer_alpha.release()
-    vid_writer_matting.release()
-    vid_writer_output.release()
+    release_videos([vid_input, vid_binary, vid_writer_alpha, vid_writer_matting, vid_writer_output])
 
 
 def run_matting_and_tracking_on_frame(frame, binary_img, background_img):
