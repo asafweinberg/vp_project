@@ -1,5 +1,17 @@
 import cv2
 
+INPUT_VIDEO_PATH = "../Inputs/INPUT.avi"
+STABILIZED_VIDEO_PATH = "../Outputs/stabilize.avi"
+SUBTRACTED_EXTRACTED_VIDEO_PATH = "../Outputs/extracted.avi"
+SUBTRACTED_BINARY_VIDEO_PATH = "../Outputs/binary.avi"
+INPUT_BACKGROUND_PATH = "../Inputs/background.jpg"
+MATTED_VIDEO_PATH = "../Outputs/matted.avi"
+ALPHA_VIDEO_PATH = "../Outputs/alpha.avi"
+OUTPUT_VIDEO_PATH = "../Outputs/OUTPUT.avi"
+
+
+
+
 def get_video_parameters(capture: cv2.VideoCapture) -> dict:
     """Get an OpenCV capture object and extract its parameters.
 

@@ -4,24 +4,22 @@ import sklearn.neighbors
 import GeodisTK
 import skimage.filters
 import scipy.ndimage
+from tqdm import tqdm
 
-def background_substraction(stab_vid_cap):
+from video_utils import *
+
+def background_substraction():
+    stab_vid_cap = cv2.VideoCapture(INPUT_VIDEO_PATH) #TODO
     #extract stabilized video parameters
-    stab_vid_width = int(stab_vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    stab_vid_height = int(stab_vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    stab_vid_frame_count = int(stab_vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    stab_vid_fps = stab_vid_cap.get(cv2.CAP_PROP_FPS)
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    params = get_video_parameters(stab_vid_cap)
+    stab_vid_frame_count = params["frame_count"]
 
     #build extracted video writer
-    extracted_video_path = "extracted.avi"
-    extracted_writer = cv2.VideoWriter(extracted_video_path, fourcc, stab_vid_fps, \
-                                       (stab_vid_width,stab_vid_height))
+    extracted_writer = init_vid_writer(SUBTRACTED_EXTRACTED_VIDEO_PATH,params,True)
     
     #build binary video writer
-    binary_video_path = "binary.avi"
-    binary_writer = cv2.VideoWriter(binary_video_path, fourcc, stab_vid_fps, \
-                                       (stab_vid_width,stab_vid_height),0)
+    binary_writer = init_vid_writer(SUBTRACTED_BINARY_VIDEO_PATH,params,False)
+
     
     mixtures_num = 5
     threshold_of_var = 4
@@ -36,10 +34,10 @@ def background_substraction(stab_vid_cap):
     fore_gmm.setNMixtures(mixtures_num)
     fore_gmm.setVarThreshold(threshold_of_var)
 
-    train_iters = 5
+    train_iters = 1
     #train the background GMM
-    for i in range(train_iters):
-        for j in range(stab_vid_frame_count):
+    for i in tqdm(range(train_iters)):
+        for j in tqdm(range(stab_vid_frame_count)):
             #set the capture to read from the jth frame from the end
             stab_vid_cap.set(1,stab_vid_frame_count-j-1)
             #read the frame
@@ -50,10 +48,10 @@ def background_substraction(stab_vid_cap):
             back_gmm.apply(frame,learningRate=None)
 
     #train the foreground GMM
-    for i in range(train_iters):
+    for i in tqdm(range(train_iters)):
         #set the capture to read from the first frame in the video
         stab_vid_cap.set(1,0)
-        for j in range(stab_vid_frame_count):
+        for j in tqdm(range(stab_vid_frame_count)):
             #read the frame
             ret, frame = stab_vid_cap.read()
             if not ret:
@@ -70,7 +68,7 @@ def background_substraction(stab_vid_cap):
     #collect necessary data both kde
     collect_kde_data_frames = np.empty([0,3]) #3 becuase of bgr
     collect_gray_data_for_hist = np.empty([0,1]) #1 because of grayscale
-    for i in range(data_frames_num):
+    for i in tqdm(range(data_frames_num)):
         ret, frame = stab_vid_cap.read()
         if not ret:
             print("failed to read frame")
@@ -94,12 +92,12 @@ def background_substraction(stab_vid_cap):
         open_ker_size = 5
         close_ker_size = 11
         #create kernel - opening
-        open_ker = cv2.getStructuringElement(cv2.MORPH_OPEN, (open_ker_size,open_ker_size))
+        open_ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (open_ker_size,open_ker_size))
         #execute the morphology
         foreground_aspect_after_open = cv2.morphologyEx(new_foreground_aspect.astype(np.uint8),\
                                                         cv2.MORPH_OPEN, open_ker)
         #crete kernel - closing
-        close_ker = cv2.getStructuringElement(cv2.MORPH_CLOSE, (close_ker_size,close_ker_size))
+        close_ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (close_ker_size,close_ker_size))
         #execute the morphology
         foreground_aspect_clean = cv2.morphologyEx(foreground_aspect_after_open.astype(np.uint8),\
                                                         cv2.MORPH_CLOSE, close_ker)
@@ -113,17 +111,20 @@ def background_substraction(stab_vid_cap):
 
         #add to histogram data
         grayscale_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray_data_frame = frame[grayscale_frame==255]
+        gray_data_frame = grayscale_frame[foreground_aspect_clean==255]
         collect_gray_data_for_hist = np.append(collect_gray_data_for_hist, \
                                                np.expand_dims(gray_data_frame,1),axis=0)
 
+    print("before kde")
     #initialize the kde
-    kde = sklearn.neighbors.KernelDensity(bandwidth=0.3, kernel='gaussian',atol=0.000000005)
+    kde = sklearn.neighbors.KernelDensity(bandwidth=0.3, kernel='gaussian',atol=0.00000001)
     #use the data collected
     kde.fit(collect_kde_data_frames)
+    print("after kde")
+
 
     #initialize histogram, using the data collected
-    ps, bins = np.histogram(collect_gray_data_for_hist.flatten(),bins=30, density=True)
+    ps, bins = np.histogram(collect_gray_data_for_hist.flatten(),bins=25, density=True)
     bins_diff = bins[1]-bins[0]
     #calculate the pdf
     pdf = bins_diff*np.cumsum(ps)
@@ -153,7 +154,7 @@ def background_substraction(stab_vid_cap):
     old_frame_applied = None
     frame_last_trained = data_frames_num
     #go over each frame
-    for i in range(stab_vid_frame_count):
+    for i in tqdm(range(stab_vid_frame_count)):
         ret, frame = stab_vid_cap.read()
         if not ret:
             print("failed to read frame")
@@ -181,12 +182,12 @@ def background_substraction(stab_vid_cap):
         open_ker_size = 5
         close_ker_size = 11
         #create kernel - opening
-        open_ker = cv2.getStructuringElement(cv2.MORPH_OPEN, (open_ker_size,open_ker_size))
+        open_ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (open_ker_size,open_ker_size))
         #execute the morphology
         foreground_applied_after_open = cv2.morphologyEx(new_frame_applied.astype(np.uint8),\
                                                         cv2.MORPH_OPEN, open_ker)
         #crete kernel - closing
-        close_ker = cv2.getStructuringElement(cv2.MORPH_CLOSE, (close_ker_size,close_ker_size))
+        close_ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (close_ker_size,close_ker_size))
         #execute the morphology
         foreground_applied_clean = cv2.morphologyEx(foreground_applied_after_open.astype(np.uint8),\
                                                         cv2.MORPH_CLOSE, close_ker)
@@ -198,7 +199,7 @@ def background_substraction(stab_vid_cap):
 
         #remove values exceeding histogram limits
         grayscale_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        foreground_applied_clean[grayscale_frame>hist_max_val] = 0
+        foreground_applied_clean[grayscale_frame>hist_min_val] = 0
         foreground_applied_clean[grayscale_frame<hist_max_val] = 0
         foreground_applied_after_hist_adjust = np.copy(foreground_applied_clean)
 
@@ -213,7 +214,7 @@ def background_substraction(stab_vid_cap):
                 foreground_applied_clean = kde_refine_clear_noise(foreground_applied_after_hist_adjust,frame)
             #check need to retrain the kde
             retrain_th = 7000
-            if (sum/255)<retrain_th and i-data_frames_num>=5:
+            if (sum/255)<retrain_th and i-frame_last_trained>=5:
                 collect_kde_data_frames = np.append(collect_kde_data_frames,frame[foreground_applied_clean>0],axis=0)
                 kde_temp_size = 100000
                 #collect_kde_data_frames needs to be in the size of kde_temp_size
@@ -223,7 +224,7 @@ def background_substraction(stab_vid_cap):
                 kde = sklearn.neighbors.KernelDensity(bandwidth=0.3, kernel='gaussian',atol=0.000000005)
                 #use the data collected
                 kde.fit(collect_kde_data_frames)
-                frame_last_trained = frame
+                frame_last_trained = i
         
         #fill holes
         foreground_applied_clean = 255*scipy.ndimage.binary_fill_holes(foreground_applied_clean).astype(np.uint8)
@@ -236,10 +237,10 @@ def background_substraction(stab_vid_cap):
         frame_ext = np.zeros_like(frame)
         #fill in the non zeros indices of foreground_applied_clean=255 the frame in those indices
         frame_ext[foreground_applied_clean==255] = frame[foreground_applied_clean==255]
-        extracted_writer.write(frame_ext)
+        extracted_writer.write(frame_ext.astype(np.uint8))
 
         #write to binary video
-        binary_writer.write(foreground_applied_clean)
+        binary_writer.write(foreground_applied_clean.astype(np.uint8))
 
     #release writers
     extracted_writer.release()
@@ -259,6 +260,7 @@ def kde_refine_clear_noise(foregroud_elem, frame,kde):
     crop_frame_fore_pix = frame_fore_pix[y_cent:y_cent+height, x_cent:x_cent+width]
     high_pix_th = 0.78
     cropped_cond = crop_frame_fore_pix>high_pix_th
+    #geo_dist_map = np.random.rand(width*height).reshape(crop_frame_fore_pix.shape)
     geo_dist_map = GeodisTK.geodesic2d_raster_scan(crop_frame_fore_pix.astype(np.float32),\
                                                   cropped_cond.astype(np.uint8),1.0,2)
     cropped_max_sub_map = geo_dist_map.max()-geo_dist_map
@@ -295,7 +297,7 @@ def kde_refine_clear_noise(foregroud_elem, frame,kde):
     #here we want to clean noise by only closing morphology
     close_ker_size = 11
     #crete kernel - closing
-    close_ker = cv2.getStructuringElement(cv2.MORPH_CLOSE, (close_ker_size,close_ker_size))
+    close_ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (close_ker_size,close_ker_size))
     #execute the morphology
     foreground_elem_clean = cv2.morphologyEx(new_foreground_elem.astype(np.uint8),\
                                                     cv2.MORPH_CLOSE, close_ker)
@@ -304,3 +306,5 @@ def kde_refine_clear_noise(foregroud_elem, frame,kde):
     foreground_elem_clean[foreground_elem_clean<127] = 0
 
     return foreground_elem_clean
+
+background_substraction()
