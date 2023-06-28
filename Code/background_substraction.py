@@ -24,16 +24,16 @@ def background_substraction():
     threshold_of_var = 4
 
     #build GMM for background for the frame number
-    back_gmm = cv2.createBackgroundSubtractorMOG2(stab_vid_frame_count)
+    back_gmm = cv2.createBackgroundSubtractorMOG2(history=int(stab_vid_frame_count))
     back_gmm.setNMixtures(mixtures_num)
     back_gmm.setVarThreshold(threshold_of_var)
 
     #build GMM for foreground for the frame number
-    fore_gmm = cv2.createBackgroundSubtractorMOG2(stab_vid_frame_count)
+    fore_gmm = cv2.createBackgroundSubtractorMOG2(history=int(stab_vid_frame_count))
     fore_gmm.setNMixtures(mixtures_num)
     fore_gmm.setVarThreshold(threshold_of_var)
 
-    train_iters = 1
+    train_iters = 5
     #train the background GMM
     for i in tqdm(range(train_iters)):
         for j in tqdm(range(stab_vid_frame_count)):
@@ -116,12 +116,10 @@ def background_substraction():
         collect_gray_data_for_hist = np.append(collect_gray_data_for_hist, \
                                                np.expand_dims(gray_data_frame,1),axis=0)
 
-    print("before kde")
     #initialize the kde
     kde = sklearn.neighbors.KernelDensity(bandwidth=0.3, kernel='gaussian',atol=0.00000001)
     #use the data collected
     kde.fit(collect_kde_data_frames)
-    print("after kde")
 
 
     #initialize histogram, using the data collected
@@ -163,7 +161,7 @@ def background_substraction():
             print("failed to read frame")
             exit(1)
         #for first half, work with foreground gmm, for the second with background gmm
-        if i<stab_vid_frame_count//2:
+        if i<(stab_vid_frame_count//2):
             frame_applied = fore_gmm.apply(frame,learningRate=0)
         else:
             frame_applied = back_gmm.apply(frame,learningRate=0)
@@ -202,8 +200,8 @@ def background_substraction():
 
         #remove values exceeding histogram limits
         grayscale_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        foreground_applied_clean[grayscale_frame>hist_min_val] = 0
-        foreground_applied_clean[grayscale_frame<hist_max_val] = 0
+        foreground_applied_clean[grayscale_frame<hist_min_val] = 0
+        foreground_applied_clean[grayscale_frame>hist_max_val] = 0
         foreground_applied_after_hist_adjust = np.copy(foreground_applied_clean)
 
         #need to check time derivative change in the movement's direction
@@ -217,7 +215,7 @@ def background_substraction():
                 foreground_applied_clean = kde_refine_clear_noise(foreground_applied_after_hist_adjust,frame,top_factor)
             #check need to retrain the kde
             retrain_th = 7000
-            if (sum/255)<retrain_th and i-frame_last_trained>=5:
+            if ((sum/255)<retrain_th) and (i-frame_last_trained>=data_frames_num):
                 collect_kde_data_frames = np.append(collect_kde_data_frames,frame[foreground_applied_clean>0],axis=0)
                 kde_temp_size = 100000
                 #collect_kde_data_frames needs to be in the size of kde_temp_size
@@ -239,11 +237,11 @@ def background_substraction():
         #write to extracted video
         frame_ext = np.zeros_like(frame)
         #fill in the non zeros indices of foreground_applied_clean=255 the frame in those indices
-        print("max frame: " +str(frame.max()))
-        print("max frame[foreground_applied_clean==255]: " +str(frame[foreground_applied_clean==255].max()))
+        #print("max frame: " +str(frame.max()))
+        #print("max frame[foreground_applied_clean==255]: " +str(frame[foreground_applied_clean==255].max()))
         frame_ext[foreground_applied_clean==255] = frame[foreground_applied_clean==255]
         extracted_writer.write(frame_ext.astype(np.uint8))
-        print(frame_ext.max())
+        #print(frame_ext.max())
 
         #write to binary video
         binary_writer.write(foreground_applied_clean.astype(np.uint8))
@@ -262,8 +260,8 @@ def kde_refine_clear_noise(foregroud_elem, frame,kde,top_factor):
     foregroud_elem_ps[foregroud_elem==255] = log_like_res
 
     #build geodesik distance map
-    x_cent, y_cent, width, height = cv2.boundingRect(frame_fore_pix)
-    crop_frame_fore_pix = frame_fore_pix[y_cent:y_cent+height, x_cent:x_cent+width]
+    x_cent, y_cent, width, height = cv2.boundingRect(foregroud_elem)
+    crop_frame_fore_pix = foregroud_elem_ps[y_cent:y_cent+height, x_cent:x_cent+width]
     high_pix_th = 0.78
     cropped_cond = crop_frame_fore_pix>high_pix_th
     geo_dist_map = np.random.rand(width*height).reshape(crop_frame_fore_pix.shape)
@@ -299,7 +297,7 @@ def kde_refine_clear_noise(foregroud_elem, frame,kde,top_factor):
     label_max = int(np.argmax(component_sizes[1:]))+1
     new_foreground_elem = np.zeros_like(labels)
     #make sure that label_max is an integer
-    new_foreground_elem[labels==int(label_max)]=255
+    new_foreground_elem[labels==label_max]=255
     #here we want to clean noise by only closing morphology
     close_ker_size = 11
     #crete kernel - closing
