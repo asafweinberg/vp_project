@@ -1,11 +1,10 @@
 import cv2
 import numpy as np
 import sklearn.neighbors
-import GeodisTK
+#import GeodisTK
 import skimage.filters
 import scipy.ndimage
 from tqdm import tqdm
-
 from video_utils import *
 
 def background_substraction():
@@ -79,15 +78,17 @@ def background_substraction():
         height, width = foreground_aspect.shape
         #TODO
         #we want not to refer to some pixels on top since the person is walking
-        foreground_aspect[0:height//8,:] = 0
+        #top_factor = 8
+        top_factor=10
+        foreground_aspect[0:height//top_factor,:] = 0
         #take largest connected component - the foreground object in our case
         retval, labels, stats, centroids = cv2.connectedComponentsWithStats(\
             foreground_aspect,connectivity=4)
         component_sizes = stats[:,-1]
-        label_max = np.floor(np.argmax(component_sizes[1:]))+1
-        new_foreground_aspect = np.zeros_like(labels,dtype=np.int32)
+        label_max = int(np.argmax(component_sizes[1:]))+1
+        new_foreground_aspect = np.zeros_like(labels)
         #make sure that label_max is an integer
-        new_foreground_aspect[labels==int(label_max)]=255
+        new_foreground_aspect[labels==label_max]=255
         #here we want to clean noise by opening and closing morphology
         open_ker_size = 5
         close_ker_size = 11
@@ -132,7 +133,8 @@ def background_substraction():
     #threshold acoording to desired low and high pdf thresholds
     #define histogram's edge values
     #low
-    pdf_low_th = 0.001
+    #pdf_low_th = 0.001
+    pdf_low_th = 0.002
     low_cond = np.where(pdf<pdf_low_th)
     hist_min_val = 0
     if (len(low_cond[0])>0): #need to update histogram minimum value
@@ -140,12 +142,13 @@ def background_substraction():
         hist_min_val = bins[np.max(low_cond)]
     
     #high
-    pdf_high_th = 0.999
+    #pdf_high_th = 0.999
+    pdf_high_th = 0.998
     high_cond = np.where(pdf>pdf_high_th)
     hist_max_val = 255
     if (len(high_cond[0])>0): #need to update histogram minimum value
         #take the minimum out of the bins in the condition
-        hist_max_val = bins[np.max(high_cond)]
+        hist_max_val = bins[np.min(high_cond)]
 
 
     #now we run on the video
@@ -169,15 +172,15 @@ def background_substraction():
         height, width = frame_applied.shape
         #TODO
         #we want not to refer to some pixels on top since the person is walking
-        frame_applied[0:height//8,:] = 0
+        frame_applied[0:height//top_factor,:] = 0
         #take largest connected component - the foreground object in our case
         retval, labels, stats, centroids = cv2.connectedComponentsWithStats(\
             frame_applied,connectivity=4)
         component_sizes = stats[:,-1]
-        label_max = np.floor(np.argmax(component_sizes[1:]))+1
-        new_frame_applied = np.zeros_like(labels,dtype=np.int32)
+        label_max = int(np.argmax(component_sizes[1:]))+1
+        new_frame_applied = np.zeros_like(labels)
         #make sure that label_max is an integer
-        new_frame_applied[labels==int(label_max)]=255
+        new_frame_applied[labels==label_max]=255
         #here we want to clean noise by opening and closing morphology
         open_ker_size = 5
         close_ker_size = 11
@@ -208,10 +211,10 @@ def background_substraction():
             frames_applied_diff = (foreground_applied_clean-old_frame_applied)*\
             (foreground_applied_clean-old_frame_applied>0)
             #check if we need to clear noise
-            diff_th_for_clean = 8200
+            diff_th_for_clean = 8500
             sum = np.sum(frames_applied_diff)
             if (sum/255)>diff_th_for_clean:
-                foreground_applied_clean = kde_refine_clear_noise(foreground_applied_after_hist_adjust,frame)
+                foreground_applied_clean = kde_refine_clear_noise(foreground_applied_after_hist_adjust,frame,top_factor)
             #check need to retrain the kde
             retrain_th = 7000
             if (sum/255)<retrain_th and i-frame_last_trained>=5:
@@ -236,8 +239,11 @@ def background_substraction():
         #write to extracted video
         frame_ext = np.zeros_like(frame)
         #fill in the non zeros indices of foreground_applied_clean=255 the frame in those indices
+        print("max frame: " +str(frame.max()))
+        print("max frame[foreground_applied_clean==255]: " +str(frame[foreground_applied_clean==255].max()))
         frame_ext[foreground_applied_clean==255] = frame[foreground_applied_clean==255]
         extracted_writer.write(frame_ext.astype(np.uint8))
+        print(frame_ext.max())
 
         #write to binary video
         binary_writer.write(foreground_applied_clean.astype(np.uint8))
@@ -247,7 +253,7 @@ def background_substraction():
     binary_writer.release()
 
 
-def kde_refine_clear_noise(foregroud_elem, frame,kde):
+def kde_refine_clear_noise(foregroud_elem, frame,kde,top_factor):
     frame_fore_pix = frame[foregroud_elem==255]
     temp_fact = 48
     log_like_res = np.exp(kde.score_samples(frame_fore_pix)/temp_fact)
@@ -260,11 +266,11 @@ def kde_refine_clear_noise(foregroud_elem, frame,kde):
     crop_frame_fore_pix = frame_fore_pix[y_cent:y_cent+height, x_cent:x_cent+width]
     high_pix_th = 0.78
     cropped_cond = crop_frame_fore_pix>high_pix_th
-    #geo_dist_map = np.random.rand(width*height).reshape(crop_frame_fore_pix.shape)
-    geo_dist_map = GeodisTK.geodesic2d_raster_scan(crop_frame_fore_pix.astype(np.float32),\
-                                                  cropped_cond.astype(np.uint8),1.0,2)
+    geo_dist_map = np.random.rand(width*height).reshape(crop_frame_fore_pix.shape)
+    #geo_dist_map = GeodisTK.geodesic2d_raster_scan(crop_frame_fore_pix.astype(np.float32),\
+     #                                             cropped_cond.astype(np.uint8),1.0,2)
     cropped_max_sub_map = geo_dist_map.max()-geo_dist_map
-    cropped_th = 0.001
+    cropped_th = 0.002
     cropped_max_sub_map[crop_frame_fore_pix<cropped_th] = 0
 
     #make 3-level otsu thresholding
@@ -285,13 +291,13 @@ def kde_refine_clear_noise(foregroud_elem, frame,kde):
     height, width = foregroud_elem.shape
     #TODO
     #we want not to refer to some pixels on top since the person is walking
-    foregroud_elem[0:height//8,:] = 0
+    foregroud_elem[0:height//top_factor,:] = 0
     #take largest connected component - the foreground object in our case
     retval, labels, stats, centroids = cv2.connectedComponentsWithStats(\
         foregroud_elem,connectivity=4)
     component_sizes = stats[:,-1]
-    label_max = np.floor(np.argmax(component_sizes[1:]))+1
-    new_foreground_elem = np.zeros_like(labels,dtype=np.int32)
+    label_max = int(np.argmax(component_sizes[1:]))+1
+    new_foreground_elem = np.zeros_like(labels)
     #make sure that label_max is an integer
     new_foreground_elem[labels==int(label_max)]=255
     #here we want to clean noise by only closing morphology
