@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
 from tqdm import tqdm
 from video_utils import *
+import json
 
 
 ALPHA_AREA_KERNEL_WIDTH = 5
@@ -14,12 +15,22 @@ EPSILON = 10 ** -7
 BOUNDRY_THRESHOLD = 0.1
 PIXEL_NEIGHBORHOOD_WIDTH = 5
 log = True
+tracking_json_data = {}
 
+<<<<<<< HEAD
 # INPUT_VIDEO_PATH = 'Inputs/INPUT.avi'
 # BINARY_VIDEO_PATH = 'Outputs/binary.avi'
 # ALPHA_OUT_PATH = 'Outputs/alpha.avi'
 # MATTED_OUT_PATH = 'Outputs/matted.avi'
 # OUTPUT_OUT_PATH = 'Outputs/OUTPUT.avi'
+=======
+INPUT_VIDEO_PATH = 'Inputs/INPUT.avi'
+BINARY_VIDEO_PATH = 'Outputs/binary_315398875_315328963.avi'
+ALPHA_OUT_PATH = 'Outputs/alpha_315398875_315328963.avi'
+MATTED_OUT_PATH = 'Outputs/matted_315398875_315328963.avi'
+OUTPUT_OUT_PATH = 'Outputs/OUTPUT_315398875_315328963.avi'
+TRACKING_JSON_FILE = "Outputs/tracking.json"
+>>>>>>> 286bcd3589f58d3dfc653d999f613337b191ab37
 
 def matting_and_tracking():
     vid_input = cv2.VideoCapture(SUBTRACTED_EXTRACTED_VIDEO_PATH)
@@ -47,7 +58,9 @@ def matting_and_tracking():
             vid_writer_output.write(tracked.astype('uint8'))
         else:
             break
-
+    
+    with open(TRACKING_JSON_FILE, 'w') as file:
+        json.dump(TRACKING_JSON_FILE, file)
     release_videos([vid_input, vid_binary, vid_writer_alpha, vid_writer_matting, vid_writer_output])
 
 
@@ -63,6 +76,7 @@ def run_matting_and_tracking_on_frame(frame, binary_img, background_img, frame_n
 
     row,col,height, width = bbox[0], bbox[1], bbox[2]-bbox[0], bbox[3]-bbox[1]
     tracked = cv2.rectangle(np.copy(matted_frame), (bbox[1], bbox[0], bbox[3]-bbox[1], bbox[2]-bbox[0]), (255,0,0), 2)
+    tracking_json_data[str(frame_num)] = [row,col,height,width]
 
     return (alpha_map*255), matted_frame, tracked
 
