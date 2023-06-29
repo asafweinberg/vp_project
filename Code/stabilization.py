@@ -54,4 +54,3 @@ def calc_warped_frame(current_frame, next_frame, frame_dimensions):
     return frame_stabilized
 
 
-stabilize()

@@ -15,22 +15,22 @@ BOUNDRY_THRESHOLD = 0.1
 PIXEL_NEIGHBORHOOD_WIDTH = 5
 log = True
 
-INPUT_VIDEO_PATH = 'Inputs/INPUT.avi'
-BINARY_VIDEO_PATH = 'Outputs/binary.avi'
-ALPHA_OUT_PATH = 'Outputs/alpha.avi'
-MATTED_OUT_PATH = 'Outputs/matted.avi'
-OUTPUT_OUT_PATH = 'Outputs/OUTPUT.avi'
+# INPUT_VIDEO_PATH = 'Inputs/INPUT.avi'
+# BINARY_VIDEO_PATH = 'Outputs/binary.avi'
+# ALPHA_OUT_PATH = 'Outputs/alpha.avi'
+# MATTED_OUT_PATH = 'Outputs/matted.avi'
+# OUTPUT_OUT_PATH = 'Outputs/OUTPUT.avi'
 
 def matting_and_tracking():
     vid_input = cv2.VideoCapture(SUBTRACTED_EXTRACTED_VIDEO_PATH)
-    vid_binary = cv2.VideoCapture(BINARY_VIDEO_PATH)
+    vid_binary = cv2.VideoCapture(SUBTRACTED_BINARY_VIDEO_PATH)
 
     vid_params = get_video_parameters(vid_binary)
     width, height = (vid_params['width'], vid_params['height'])
 
-    vid_writer_alpha = init_vid_writer(ALPHA_OUT_PATH, vid_params, False)
-    vid_writer_matting = init_vid_writer(MATTED_OUT_PATH, vid_params, True)
-    vid_writer_output = init_vid_writer(OUTPUT_OUT_PATH, vid_params, True)
+    vid_writer_alpha = init_vid_writer(ALPHA_VIDEO_PATH, vid_params, False)
+    vid_writer_matting = init_vid_writer(MATTED_VIDEO_PATH, vid_params, True)
+    vid_writer_output = init_vid_writer(OUTPUT_VIDEO_PATH, vid_params, True)
 
     background_img = cv2.imread('Inputs/background.jpg')
 
@@ -188,9 +188,3 @@ def calc_slice_limits(arr, start_row, start_col, end_row, end_col, pad_w, pad_h)
 
 
 
-
-# video_capture = cv2.VideoCapture('../../../ref_VPproject/FinalProject_300508850_021681283/Outputs/binary.avi')  
-# video_capture.set(cv2.CAP_PROP_POS_FRAMES, 1)
-# success, frame = video_capture.read()
-# cv2.imwrite('../Inputs/bin_img.png', frame)
-matting_and_tracking()
