@@ -34,13 +34,13 @@ def matting_and_tracking():
 
     background_img = cv2.imread('Inputs/background.jpg')
 
-    for _ in tqdm(range(vid_params['frame_count']-1)):
+    for i in tqdm(range(vid_params['frame_count']-1)):
         success_input, input_frame = vid_input.read()
         success_binary, binary_frame = vid_binary.read()
         binary_frame = cv2.cvtColor(binary_frame, cv2.COLOR_BGR2GRAY)
 
         if success_input or success_binary:
-            alpha, matted, tracked =  run_matting_and_tracking_on_frame(input_frame, binary_frame, background_img)
+            alpha, matted, tracked =  run_matting_and_tracking_on_frame(input_frame, binary_frame, background_img, i)
 
             vid_writer_alpha.write(alpha.astype('uint8'))
             vid_writer_matting.write(matted.astype('uint8'))
@@ -51,7 +51,7 @@ def matting_and_tracking():
     release_videos([vid_input, vid_binary, vid_writer_alpha, vid_writer_matting, vid_writer_output])
 
 
-def run_matting_and_tracking_on_frame(frame, binary_img, background_img):
+def run_matting_and_tracking_on_frame(frame, binary_img, background_img, frame_num):
     luma_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     trimap = create_initial_trimap(binary_img)
@@ -62,8 +62,6 @@ def run_matting_and_tracking_on_frame(frame, binary_img, background_img):
     # cv2.imwrite('Outputs/matted_frame.png', matted_frame)
 
     tracked = cv2.rectangle(np.copy(matted_frame), (bbox[1], bbox[0], bbox[3]-bbox[1], bbox[2]-bbox[0]), (255,0,0), 2)
-    cv2.imwrite('Outputs/matted_frame.png', matted_frame)
-    cv2.imwrite('Outputs/tracked.png', tracked)
 
     return (alpha_map*255), matted_frame, tracked
 
