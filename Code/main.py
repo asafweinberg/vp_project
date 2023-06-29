@@ -15,17 +15,25 @@ def run_all_parts():
         "time_to_output": 0,
     }
     start_time = time.time()
+
     stabilize()
+    
     stab_end_time = time.time()
     data["time_to_stabilize"] = stab_end_time-start_time
+
     background_substraction()
+
     bs_end_time = time.time()
-    data["time_to_stabilize"] = bs_end_time-start_time
+    data["time_to_binary"] = bs_end_time-start_time
+
     matting_and_tracking()
+
     tracking_end_time = time.time()
+
     data["time_to_alpha"] = tracking_end_time-start_time
     data["time_to_matted"] = tracking_end_time-start_time
-    data["time_to_stabilize"] = tracking_end_time-start_time
+    data["time_to_output"] = tracking_end_time-start_time
+
     with open(json_file, 'w') as file:
         json.dump(json_file, file)
 
