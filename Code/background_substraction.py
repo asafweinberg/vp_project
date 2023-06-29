@@ -1,14 +1,14 @@
 import cv2
 import numpy as np
 import sklearn.neighbors
-#import GeodisTK
+import GeodisTK
 import skimage.filters
 import scipy.ndimage
 from tqdm import tqdm
 from video_utils import *
 
 def background_substraction():
-    stab_vid_cap = cv2.VideoCapture(INPUT_VIDEO_PATH) #TODO
+    stab_vid_cap = cv2.VideoCapture(STABILIZED_VIDEO_PATH) #TODO
     #extract stabilized video parameters
     params = get_video_parameters(stab_vid_cap)
     stab_vid_frame_count = params["frame_count"]
@@ -156,6 +156,8 @@ def background_substraction():
     frame_last_trained = data_frames_num
     #go over each frame
     for i in tqdm(range(stab_vid_frame_count)):
+        # if i > stab_vid_frame_count //4:
+        #     break
         ret, frame = stab_vid_cap.read()
         if not ret:
             print("failed to read frame")
@@ -193,8 +195,8 @@ def background_substraction():
         foreground_applied_clean = cv2.morphologyEx(foreground_applied_after_open.astype(np.uint8),\
                                                         cv2.MORPH_CLOSE, close_ker)
         #convert to binary
-        foreground_applied_clean[foreground_aspect_clean>=127] = 255
-        foreground_applied_clean[foreground_aspect_clean<127] = 0
+        foreground_applied_clean[foreground_applied_clean>=127] = 255
+        foreground_applied_clean[foreground_applied_clean<127] = 0
 
         old_foreground_applied_clean = np.copy(foreground_applied_clean)
 
@@ -212,7 +214,7 @@ def background_substraction():
             diff_th_for_clean = 8500
             sum = np.sum(frames_applied_diff)
             if (sum/255)>diff_th_for_clean:
-                foreground_applied_clean = kde_refine_clear_noise(foreground_applied_after_hist_adjust,frame,top_factor)
+                foreground_applied_clean = kde_refine_clear_noise(foreground_applied_after_hist_adjust, frame, kde, top_factor)
             #check need to retrain the kde
             retrain_th = 7000
             if ((sum/255)<retrain_th) and (i-frame_last_trained>=data_frames_num):
@@ -251,7 +253,7 @@ def background_substraction():
     binary_writer.release()
 
 
-def kde_refine_clear_noise(foregroud_elem, frame,kde,top_factor):
+def kde_refine_clear_noise(foregroud_elem, frame, kde, top_factor):
     frame_fore_pix = frame[foregroud_elem==255]
     temp_fact = 48
     log_like_res = np.exp(kde.score_samples(frame_fore_pix)/temp_fact)
@@ -262,13 +264,13 @@ def kde_refine_clear_noise(foregroud_elem, frame,kde,top_factor):
     #build geodesik distance map
     x_cent, y_cent, width, height = cv2.boundingRect(foregroud_elem)
     crop_frame_fore_pix = foregroud_elem_ps[y_cent:y_cent+height, x_cent:x_cent+width]
-    high_pix_th = 0.78
+    high_pix_th = 0.8
     cropped_cond = crop_frame_fore_pix>high_pix_th
-    geo_dist_map = np.random.rand(width*height).reshape(crop_frame_fore_pix.shape)
-    #geo_dist_map = GeodisTK.geodesic2d_raster_scan(crop_frame_fore_pix.astype(np.float32),\
-     #                                             cropped_cond.astype(np.uint8),1.0,2)
+    # geo_dist_map = np.random.rand(width*height).reshape(crop_frame_fore_pix.shape)
+    geo_dist_map = GeodisTK.geodesic2d_raster_scan(crop_frame_fore_pix.astype(np.float32),\
+                                                 cropped_cond.astype(np.uint8),1.0,2)
     cropped_max_sub_map = geo_dist_map.max()-geo_dist_map
-    cropped_th = 0.002
+    cropped_th = 0.001
     cropped_max_sub_map[crop_frame_fore_pix<cropped_th] = 0
 
     #make 3-level otsu thresholding

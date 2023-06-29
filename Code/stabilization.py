@@ -4,9 +4,6 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from video_utils import *
 
-INPUT_VIDEO_PATH = 'Inputs/INPUT.avi'
-STABILIZED_VIDEO_PATH = 'Outputs/stabilize.avi'
-
 
 def stabilize():
     vid_input = cv2.VideoCapture(INPUT_VIDEO_PATH)

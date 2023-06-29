@@ -8,10 +8,10 @@ from video_utils import *
 
 
 ALPHA_AREA_KERNEL_WIDTH = 5
-TRIMAP_BBOX_PADDING = 7
+TRIMAP_BBOX_PADDING = 5
 DIST_POW = -1
 EPSILON = 10 ** -7
-BOUNDRY_THRESHOLD = 0.96
+BOUNDRY_THRESHOLD = 0.1
 PIXEL_NEIGHBORHOOD_WIDTH = 5
 log = True
 
@@ -22,7 +22,7 @@ MATTED_OUT_PATH = 'Outputs/matted.avi'
 OUTPUT_OUT_PATH = 'Outputs/OUTPUT.avi'
 
 def matting_and_tracking():
-    vid_input = cv2.VideoCapture(INPUT_VIDEO_PATH)
+    vid_input = cv2.VideoCapture(SUBTRACTED_EXTRACTED_VIDEO_PATH)
     vid_binary = cv2.VideoCapture(BINARY_VIDEO_PATH)
 
     vid_params = get_video_parameters(vid_binary)
@@ -34,9 +34,10 @@ def matting_and_tracking():
 
     background_img = cv2.imread('Inputs/background.jpg')
 
-    for _ in tqdm(range(vid_params['frames_count']-1)):
+    for _ in tqdm(range(vid_params['frame_count']-1)):
         success_input, input_frame = vid_input.read()
         success_binary, binary_frame = vid_binary.read()
+        binary_frame = cv2.cvtColor(binary_frame, cv2.COLOR_BGR2GRAY)
 
         if success_input or success_binary:
             alpha, matted, tracked =  run_matting_and_tracking_on_frame(input_frame, binary_frame, background_img)
@@ -57,10 +58,12 @@ def run_matting_and_tracking_on_frame(frame, binary_img, background_img):
     bbox = get_bounding_box(trimap)
     alpha_map, cropped_alpha = calculate_alpha_map(trimap, luma_frame, bbox)
     matted_frame = calculate_matted_frame(frame, background_img, cropped_alpha, bbox)
-    cv2.imwrite('Outputs/alpha_map.png', alpha_map*255)
-    cv2.imwrite('Outputs/matted_frame.png', matted_frame)
+    # cv2.imwrite('Outputs/alpha_map.png', alpha_map*255)
+    # cv2.imwrite('Outputs/matted_frame.png', matted_frame)
 
-    tracked = cv2.rectangle(matted_frame, np.array([bbox[0],bbox[1]]), np.array([bbox[2],bbox[3]]), (255,0,0), 2)
+    tracked = cv2.rectangle(np.copy(matted_frame), (bbox[1], bbox[0], bbox[3]-bbox[1], bbox[2]-bbox[0]), (255,0,0), 2)
+    cv2.imwrite('Outputs/matted_frame.png', matted_frame)
+    cv2.imwrite('Outputs/tracked.png', tracked)
 
     return (alpha_map*255), matted_frame, tracked
 
@@ -70,8 +73,8 @@ def create_initial_trimap(binary_img):
     trimap = binary_img / 255
     alpha_kernel = np.ones((ALPHA_AREA_KERNEL_WIDTH,ALPHA_AREA_KERNEL_WIDTH))
     
-    img_erosion = cv2.erode(binary_img, alpha_kernel, iterations=1)
-    img_dilation = cv2.dilate(binary_img, alpha_kernel, iterations=1)
+    img_erosion = cv2.erode(binary_img, alpha_kernel, iterations=2)
+    img_dilation = cv2.dilate(binary_img, alpha_kernel, iterations=2)
 
     alpha_region = img_dilation - img_erosion
 
@@ -93,30 +96,37 @@ def calculate_alpha_map(trimap, luma_img, bbox):
 
     alpha_indices = np.where(cropped_trimap == 0.5)
     alpha_pixels = cropped_origin[alpha_indices]
-    
+    unique_vals = np.unique(alpha_pixels)
 
     def_bg_pixels = np.zeros_like(cropped_alpha, dtype=np.uint8)
     def_bg_pixels[cropped_trimap == 0] = 1
     bg_geodist = GeodisTK.geodesic2d_raster_scan(cropped_origin, def_bg_pixels, 1.0, 2)
     d_bg = bg_geodist[alpha_indices]
-    # bg_pdf = gaussian_kde(cropped_origin[cropped_trimap == 0]) #TODO: check if should be background image
-    # bg_probabilities = bg_pdf.evaluate(alpha_pixels)
-    bg_probabilities = np.zeros_like(alpha_pixels) + 1
+    bg_pdf = gaussian_kde(cropped_origin[cropped_trimap == 0]) #TODO: check if should be background image
+    unique_probs_bg = bg_pdf.evaluate(unique_vals)
+    bg_probabilities = np.zeros(alpha_pixels.shape)
+    for u, p in zip(unique_vals, unique_probs_bg):
+        bg_probabilities[alpha_pixels == u] = p 
+    # bg_probabilities = np.zeros_like(alpha_pixels) + 1
 
  
     def_fg_pixels = np.zeros_like(cropped_alpha, dtype=np.uint8)
     def_fg_pixels[cropped_trimap == 1] = 1
     fg_geodist = GeodisTK.geodesic2d_raster_scan(cropped_origin, def_fg_pixels, 1.0, 2)
     d_fg = fg_geodist[alpha_indices]
-    # fg_pdf = gaussian_kde(cropped_origin[cropped_trimap == 1])
-    # fg_probabilities = fg_pdf.evaluate(alpha_pixels)
-    fg_probabilities = np.zeros_like(alpha_pixels) + 1
+    fg_pdf = gaussian_kde(cropped_origin[cropped_trimap == 1])
+    unique_probs_fg = fg_pdf.evaluate(unique_vals)
+    fg_probabilities = np.zeros(alpha_pixels.shape)
+    for u, p in zip(unique_vals, unique_probs_fg):
+        fg_probabilities[alpha_pixels == u] = p 
+
+    # fg_probabilities = np.zeros_like(alpha_pixels) + 1
 
 
     w_bg = bg_probabilities * ((d_bg + EPSILON)**DIST_POW)
     w_fg = fg_probabilities * ((d_fg + EPSILON)**DIST_POW)
 
-    alpha_values = w_fg / (w_fg + w_bg)
+    alpha_values = w_fg / (w_fg + w_bg + EPSILON)
 
     cropped_alpha[alpha_indices] = alpha_values
 
@@ -128,9 +138,11 @@ def calculate_alpha_map(trimap, luma_img, bbox):
 def calculate_matted_frame(img, background_img, cropped_alpha, bbox):
     matted_frame = np.copy(background_img)
     matted_box = matted_frame[bbox[0]: bbox[2], bbox[1]: bbox[3]]
-    cropped_img = matted_frame[bbox[0]: bbox[2], bbox[1]: bbox[3]]
+    cropped_img = img[bbox[0]: bbox[2], bbox[1]: bbox[3]]
     cropped_bg = matted_frame[bbox[0]: bbox[2], bbox[1]: bbox[3]]
-    matted_box[cropped_alpha == 1] = img[bbox[0]: bbox[2], bbox[1]: bbox[3]][np.abs(cropped_alpha-0.5) >= BOUNDRY_THRESHOLD/2]
+
+    matted_box[cropped_alpha >= 1-BOUNDRY_THRESHOLD] = cropped_img[cropped_alpha >= 1-BOUNDRY_THRESHOLD]
+    matted_box[cropped_alpha < BOUNDRY_THRESHOLD] = cropped_bg[cropped_alpha < BOUNDRY_THRESHOLD]
 
     boundry_indices = np.where(np.abs(cropped_alpha-0.5) < BOUNDRY_THRESHOLD/2)
     for row, col in zip(boundry_indices[0],boundry_indices[1]):
@@ -182,3 +194,4 @@ def calc_slice_limits(arr, start_row, start_col, end_row, end_col, pad_w, pad_h)
 # video_capture.set(cv2.CAP_PROP_POS_FRAMES, 1)
 # success, frame = video_capture.read()
 # cv2.imwrite('../Inputs/bin_img.png', frame)
+matting_and_tracking()
