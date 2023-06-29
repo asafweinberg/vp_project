@@ -61,6 +61,7 @@ def run_matting_and_tracking_on_frame(frame, binary_img, background_img, frame_n
     # cv2.imwrite('Outputs/alpha_map.png', alpha_map*255)
     # cv2.imwrite('Outputs/matted_frame.png', matted_frame)
 
+    row,col,height, width = bbox[0], bbox[1], bbox[2]-bbox[0], bbox[3]-bbox[1]
     tracked = cv2.rectangle(np.copy(matted_frame), (bbox[1], bbox[0], bbox[3]-bbox[1], bbox[2]-bbox[0]), (255,0,0), 2)
 
     return (alpha_map*255), matted_frame, tracked
