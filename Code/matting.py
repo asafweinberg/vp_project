@@ -17,21 +17,6 @@ PIXEL_NEIGHBORHOOD_WIDTH = 5
 log = True
 tracking_json_data = {}
 
-<<<<<<< HEAD
-# INPUT_VIDEO_PATH = 'Inputs/INPUT.avi'
-# BINARY_VIDEO_PATH = 'Outputs/binary.avi'
-# ALPHA_OUT_PATH = 'Outputs/alpha.avi'
-# MATTED_OUT_PATH = 'Outputs/matted.avi'
-# OUTPUT_OUT_PATH = 'Outputs/OUTPUT.avi'
-=======
-INPUT_VIDEO_PATH = 'Inputs/INPUT.avi'
-BINARY_VIDEO_PATH = 'Outputs/binary_315398875_315328963.avi'
-ALPHA_OUT_PATH = 'Outputs/alpha_315398875_315328963.avi'
-MATTED_OUT_PATH = 'Outputs/matted_315398875_315328963.avi'
-OUTPUT_OUT_PATH = 'Outputs/OUTPUT_315398875_315328963.avi'
-TRACKING_JSON_FILE = "Outputs/tracking.json"
->>>>>>> 286bcd3589f58d3dfc653d999f613337b191ab37
-
 def matting_and_tracking():
     vid_input = cv2.VideoCapture(SUBTRACTED_EXTRACTED_VIDEO_PATH)
     vid_binary = cv2.VideoCapture(SUBTRACTED_BINARY_VIDEO_PATH)
